@@ -6,13 +6,18 @@
         body {
             margin: 0;
             padding: 20px;
-            display: flex;
-            justify-content: center;
-            align-items: center;
             min-height: 100vh;
             background-color: #f0f0f0;
         }
-        .container {
+        .main-container {
+            display: flex;
+            justify-content: space-between;
+            gap: 20px;
+            max-width: 1800px;
+            margin: 0 auto;
+        }
+        .stream-container {
+            flex: 1;
             text-align: center;
         }
         .video-feed {
@@ -22,13 +27,20 @@
         h1 {
             color: #333;
             margin-bottom: 20px;
+            font-size: 1.5em;
         }
     </style>
 </head>
 <body>
-    <div class="container">
-        <h1>RTSP Stream with YOLOv7 and StrongSORT</h1>
-        <img class="video-feed" src="{{ url_for('video_feed') }}">
+    <div class="main-container">
+        <div class="stream-container">
+            <h1>Tracking Result</h1>
+            <img class="video-feed" src="{{ url_for('video_feed') }}">
+        </div>
+        <div class="stream-container">
+            <h1>3D Visualization</h1>
+            <img class="video-feed" src="{{ url_for('video_feed_3d') }}">
+        </div>
     </div>
 </body>
 </html>
