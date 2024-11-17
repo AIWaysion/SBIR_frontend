@@ -250,21 +250,27 @@ car_zone_tracker = {}  # Dictionary to keep track of the last blinked zone per c
 # Method: Bounding Box Center Proximity Check with Zone Center (only one zone per car)
 def check_zone_center_proximity(img, center_coords, zone_centers, car_id, proximity_threshold=20):
     # Check if car has already blinked a zone this frame
-    if car_id in car_zone_tracker:
-        return None  # Skip if already blinked one zone
+    #if car_id in car_zone_tracker:
+    #    return None  # Skip if already blinked one zone
 
     for name, zone_center in zone_centers.items():
         # Calculate the distance from the car's center to the zone center
         distance = euclidean_distance(center_coords, zone_center)
-        print(f"[DEBUG] Car ID {car_id} - Distance to Zone '{name}' center: {distance:.2f} pixels")  # Debugging distance check
+        #print(f"[DEBUG] Car ID {car_id} - Distance to Zone '{name}' center: {distance:.2f} pixels")  # Debugging distance check
 
         # Check if the car is within the proximity threshold
         if distance <= proximity_threshold:
             if car_id not in detected_cars_in_zone[name]:  # Blink only if car hasn't triggered this zone
-                print(f"[DEBUG] Car ID {car_id} is within {distance:.2f} pixels of zone {name} center; blinking zone.")
-                detected_cars_in_zone[name].add(car_id)  # Track car as detected in this zone
+                #print(f"[DEBUG] Car ID {car_id} is within {distance:.2f} pixels of zone {name} center; blinking zone.")
+                detected_cars_in_zone[name][car_id] = 1  # Track car as detected in this zone
                 car_zone_tracker[car_id] = name  # Track the zone to limit blinking to one zone per car
+                if len(car_zone_tracker) >= 100000:
+                    car_zone_tracker.clear()
                 return name  # Return the zone name to trigger blinking
+            elif detected_cars_in_zone[name][car_id] >= 1 and detected_cars_in_zone[name][car_id] <= 5:
+                print('entered')
+                detected_cars_in_zone[name][car_id] += 1
+                return name
 
     return None
 
@@ -287,8 +293,8 @@ def check_zone_proximity(
     - The zone name if both conditions are met; otherwise, None.
     """
     # Check if the car has already blinked a zone this frame
-    if car_id in car_zone_tracker:
-        return None  # Skip if already blinked one zone
+    #if car_id in car_zone_tracker:
+    #    return None  # Skip if already blinked one zone
 
     # Calculate the center of the car's bounding box
     center_coords = (
@@ -309,15 +315,17 @@ def check_zone_proximity(
                 bboxes[1] <= zone_center.y <= bboxes[3]
             ):
                 if car_id not in detected_cars_in_zone[name]:  # Blink only if not already triggered
-                    if opt.debug:
-                        print(
-                            f"[DEBUG] Car ID {car_id} is within zone '{name}' and zone center is within the car's bounding box; blinking zone."
-                        )
-                    detected_cars_in_zone[name].add(car_id)  # Track car as detected in this zone
+                    #if opt.debug:
+                        #print(f"[DEBUG] Car ID {car_id} is within zone '{name}' and zone center is within the car's bounding box; blinking zone.")
+                    detected_cars_in_zone[name][car_id] = 1  # Track car as detected in this zone
                     car_zone_tracker[car_id] = name  # Track the zone to limit blinking
                     if len(car_zone_tracker) >= 100000:
                         car_zone_tracker.clear()
                     return name  # Return the zone name to trigger blinking
+                elif detected_cars_in_zone[name][car_id] >= 1 and detected_cars_in_zone[name][car_id] <= 5:
+                    print('entered')
+                    detected_cars_in_zone[name][car_id] += 1
+                    return name
 
     return None
 # Zone highlighting helper function to display zones and blink if needed
@@ -977,7 +985,8 @@ if __name__ == "__main__":
     detection_zone_polygons = {key: Polygon(zones[key]) for key in zones if "entry_zone" in key}
     zone_polygons = {name: Polygon(coords) for name, coords in zones.items()}
     zone_centers = {name: Point(np.mean(coords, axis=0).astype(int)) for name, coords in detection_zones.items()}
-    detected_cars_in_zone = {zone: set() for zone in zone_centers}
+    #detected_cars_in_zone = {zone: set() for zone in zone_centers}
+    detected_cars_in_zone = {zone: {} for zone in zone_centers}
     
     detection_thread = threading.Thread(target=start_detection)
     detection_thread.daemon = True
