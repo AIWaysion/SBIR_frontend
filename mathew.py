@@ -7,12 +7,11 @@ from ultralytics import YOLO
 import time
 from flask import Flask, Response, render_template
 import threading
+from queue import Queue
 
 app = Flask(__name__)
 
-# Global variable to store the latest frame
-global_frame = None
-frame_lock = threading.Lock()
+frame_queue = Queue(maxsize=2)
 
 # BEV Entry Zone Definitions for Bellevue_7N_2
 entry_zones = {
@@ -144,19 +143,22 @@ TARGET = np.array([[0, 0], [TARGET_WIDTH - 1, 0], [TARGET_WIDTH - 1, TARGET_HEIG
 m = cv2.getPerspectiveTransform(SOURCE.astype(np.float32), TARGET.astype(np.float32))
 
 def generate_frames():
-    global global_frame
     while True:
-        with frame_lock:
-            if global_frame is not None:
-                # Encode the frame as JPEG
-                ret, buffer = cv2.imencode('.jpg', global_frame)
-                if not ret:
-                    continue
-                # Convert to bytes and yield for MJPEG streaming
-                frame_bytes = buffer.tobytes()
-                yield (b'--frame\r\n'
-                       b'Content-Type: image/jpeg\r\n\r\n' + frame_bytes + b'\r\n')
-        time.sleep(0.01)  # Small delay to prevent excessive CPU usage
+        try:
+            frame = frame_queue.get()
+            if frame is None:
+                continue
+            # Encode frame as JPEG
+            ret, buffer = cv2.imencode('.jpg', frame)
+            if not ret:
+                continue
+            # Construct MJPEG frame
+            frame_bytes = buffer.tobytes()
+            yield (b'--frame\r\n'
+                   b'Content-Type: image/jpeg\r\n\r\n' + frame_bytes + b'\r\n')
+        except Exception as e:
+            print(f"Error in generate_frames: {e}")
+            continue
 
 @app.route('/')
 def index():
@@ -168,11 +170,11 @@ def video_feed():
                     mimetype='multipart/x-mixed-replace; boundary=frame')
 
 def process_video():
-    global global_frame
     
     # Your existing configuration code here
     model_path = "weights/best_Near_Miss.pt"
     video_path = "rtsp://wowza01.bellevuewa.gov:1935/live/CCTV047NE.stream"
+    output_directory = "development/Bellevue_7N_2/Bellevue_7N_2_Output_Tracks"
     background_image_path = "development/Bellevue_BEV_Background.png"
     model = YOLO(model_path)
 
@@ -237,10 +239,12 @@ def process_video():
         resized_display = cv2.resize(background_image, 
                                    (int(background_image.shape[0] / 4), 
                                     int(background_image.shape[1] / 4)))
+        try:
+            if not frame_queue.full():
+                frame_queue.put(resized_display)
+        except:
+            pass
         
-        # Update the global frame with thread safety
-        with frame_lock:
-            global_frame = resized_display.copy()
 
     cap.release()
 
@@ -251,4 +255,4 @@ if __name__ == '__main__':
     video_thread.start()
     
     # Run Flask app
-    app.run(host='0.0.0.0', port=5000, debug=False)
+    app.run(host='0.0.0.0', port=3001, debug=False)
